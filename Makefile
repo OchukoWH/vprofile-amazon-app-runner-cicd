@@ -65,37 +65,6 @@ help:
 # ==============================================================================
 # S3 Bucket Creation (Manual - Must be done first)
 # ==============================================================================
-create-s3:
-	@echo "$(GREEN)Creating S3 bucket for Terraform state...$(NC)"
-	@if [ -z "$(BUCKET)" ]; then \
-		echo "$(RED)Error: bucket variable not set in $(STATE_CONFIG)$(NC)"; \
-		exit 1; \
-	fi
-	@if [ -z "$(REGION)" ]; then \
-		echo "$(RED)Error: region variable not set in $(STATE_CONFIG)$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Checking if bucket exists...$(NC)"
-	@if aws s3api head-bucket --bucket $(BUCKET) 2>/dev/null; then \
-		echo "$(GREEN)✓ Bucket $(BUCKET) already exists, skipping creation$(NC)"; \
-		exit 0; \
-	fi
-	@echo "$(YELLOW)Creating bucket: $(BUCKET) in region: $(REGION)$(NC)"
-	@if [ "$(REGION)" = "us-east-1" ]; then \
-		aws s3api create-bucket --bucket $(BUCKET) --region $(REGION); \
-	else \
-		aws s3api create-bucket --bucket $(BUCKET) --region $(REGION) --create-bucket-configuration LocationConstraint=$(REGION); \
-	fi
-	@echo "$(GREEN)Enabling versioning...$(NC)"
-	@aws s3api put-bucket-versioning --bucket $(BUCKET) --versioning-configuration Status=Enabled
-	@echo "$(GREEN)Enabling encryption...$(NC)"
-	@aws s3api put-bucket-encryption --bucket $(BUCKET) --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
-	@echo "$(GREEN)Blocking public access...$(NC)"
-	@aws s3api put-public-access-block --bucket $(BUCKET) --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-	@echo "$(GREEN)✓ S3 bucket created successfully!$(NC)"
-	@echo "$(YELLOW)Bucket: $(BUCKET)$(NC)"
-	@echo "$(YELLOW)Region: $(REGION)$(NC)"
-
 init-s3:
 	@echo "$(GREEN)Initializing S3 backend...$(NC)"
 	@cd $(S3_DIR) && terraform init
@@ -104,7 +73,7 @@ deploy-s3:
 	@echo "$(GREEN)Deploying S3 backend...$(NC)"
 	@cd $(S3_DIR) && \
 		terraform init && \
-		terraform plan -compact-warnings -var-file=../../$(TFVARS) -out=tfplan && \
+		terraform plan -compact-warnings -out=tfplan && \
 		terraform apply -auto-approve tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ S3 backend deployed$(NC)"
@@ -140,7 +109,7 @@ deploy-ecr:
 	@echo "$(GREEN)Deploying ECR repositories...$(NC)"
 	@cd $(ECR_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -var-file=../../$(TFVARS) -out=tfplan && \
+		terraform plan -compact-warnings -out=tfplan && \
 		terraform apply -auto-approve tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ ECR repositories deployed successfully$(NC)"
@@ -151,7 +120,7 @@ deploy-iam:
 	@echo "$(GREEN)Deploying IAM roles and policies...$(NC)"
 	@cd $(IAM_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -var-file=../../$(TFVARS) -out=tfplan && \
+		terraform plan -compact-warnings -out=tfplan && \
 		terraform apply -auto-approve tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ IAM resources deployed successfully$(NC)"
@@ -176,12 +145,12 @@ deploy-all: create-s3 deploy-s3 migrate-s3-backend deploy-infrastructure
 plan-ecr:
 	@cd $(ECR_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -var-file=../../$(TFVARS)
+		terraform plan -compact-warnings
 
 plan-iam:
 	@cd $(IAM_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -var-file=../../$(TFVARS)
+		terraform plan -compact-warnings
 
 plan-all: plan-ecr plan-iam
 	@echo "$(GREEN)Planning completed$(NC)"
@@ -207,14 +176,14 @@ destroy-ecr:
 	@echo "$(RED)Destroying ECR repositories...$(NC)"
 	@cd $(ECR_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform destroy -compact-warnings -var-file=../../$(TFVARS) -auto-approve
+		terraform destroy -compact-warnings -auto-approve
 	@echo "$(GREEN)✓ ECR repositories destroyed$(NC)"
 
 destroy-iam:
 	@echo "$(RED)Destroying IAM resources...$(NC)"
 	@cd $(IAM_DIR) && \
 		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform destroy -compact-warnings -var-file=../../$(TFVARS) -auto-approve
+		terraform destroy -compact-warnings -auto-approve
 	@echo "$(GREEN)✓ IAM resources destroyed$(NC)"
 
 destroy-all: destroy-iam destroy-ecr
