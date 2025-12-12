@@ -1,0 +1,62 @@
+name: Create S3 Bucket for Terraform State
+
+on:
+  push:
+    branches:
+      - state
+    paths:
+      - 'state.config'
+      - '.github/workflows/create-s3-bucket.yml'
+      - 'Makefile'
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+  TF_BUCKET: ${{ secrets.TF_BUCKET }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+
+  setup-aws:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+  create-s3:
+    needs: setup-aws
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create state.config
+        run: |
+          echo "region = \"${{ secrets.AWS_REGION || 'us-east-1' }}\"" > state.config
+          echo "bucket = \"${{ secrets.TF_BUCKET }}\"" >> state.config
+
+      - name: Create S3 bucket
+        run: make init-s3 && make deploy-s3
+
+  update-backend:
+    needs: create-s3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update backend config
+        run: make update-state-configs
+
+  migrate-backend:
+    needs: update-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Migrate Terraform backend
+        run: make migrate-s3-backend

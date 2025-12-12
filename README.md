@@ -1,6 +1,6 @@
-# VProfile - Docker Containerized Application
+# VProfile - Docker Containerized Application with AWS CI/CD Pipeline
 
-A comprehensive demonstration of Docker containerization expertise, featuring a multi-tier Java web application with microservices architecture.
+A comprehensive demonstration of Docker containerization expertise, featuring a multi-tier Java web application with microservices architecture. This project includes a complete CI/CD pipeline that builds Docker images, pushes them to Amazon ECR, and deploys containers using Amazon App Runner.
 
 ## 🐳 Docker Expertise Showcase
 
@@ -90,6 +90,49 @@ This project demonstrates a **production-ready microservices architecture** usin
    - **Username**: `admin_vp`
    - **Password**: `admin_vp`
    - **(Webapp default login)**
+
+## 🚀 CI/CD Pipeline Quick Start
+
+To set up the CI/CD pipeline for AWS ECR and App Runner:
+
+1. **Create S3 Bucket for Terraform State** (MUST BE DONE FIRST)
+   ```bash
+   export AWS_REGION="us-east-1"
+   export BUCKET_NAME="your-terraform-state-bucket-name"
+   
+   aws s3api create-bucket \
+     --bucket $BUCKET_NAME \
+     --region $AWS_REGION \
+     --create-bucket-configuration LocationConstraint=$AWS_REGION
+   
+   aws s3api put-bucket-versioning \
+     --bucket $BUCKET_NAME \
+     --versioning-configuration Status=Enabled
+   
+   aws s3api put-bucket-encryption \
+     --bucket $BUCKET_NAME \
+     --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+   ```
+
+2. **Configure AWS Credentials**
+   ```bash
+   export AWS_ACCESS_KEY_ID="your-access-key-id"
+   export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+   export AWS_REGION="us-east-1"  # or your preferred region
+   ```
+
+3. **Provision Infrastructure with Terraform**
+   ```bash
+   cd global/ecr
+   terraform init
+   terraform apply -var-file=../../global.tfvars
+   ```
+
+4. **Configure CI/CD Environment**
+   - For GitHub Actions: Add AWS credentials as repository secrets
+   - See the [CI/CD Pipeline](#-cicd-pipeline-with-aws-ecr-and-app-runner) section for detailed instructions
+
+For complete setup instructions, see the [CI/CD Pipeline](#-cicd-pipeline-with-aws-ecr-and-app-runner) section below.
 
 ## 🐳 Docker Implementation Details
 
@@ -298,65 +341,369 @@ docker stats
 docker-compose logs -f vproapp
 ```
 
-## 🔄 CI/CD with GitHub Actions
+## 🔄 CI/CD Pipeline with AWS ECR and App Runner
 
-This project includes a GitHub Actions workflow that automatically builds and pushes Docker images to Docker Hub when code is pushed to the `docker-hub` branch.
+This project implements a complete CI/CD pipeline that automatically builds Docker images, pushes them to Amazon Elastic Container Registry (ECR), and deploys containers using Amazon App Runner.
 
-### Setup Instructions
+### Pipeline Overview
 
-1. **Create Docker Hub Access Token**
-   - Log in to [Docker Hub](https://hub.docker.com/)
-   - Go to Account Settings → Security → New Access Token
-   - Create a token with read/write permissions
-   - Copy the token (you won't see it again)
+The CI/CD pipeline performs the following steps:
 
-2. **Configure GitHub Secrets**
-   - Go to your GitHub repository
-   - Navigate to Settings → Secrets and variables → Actions
-   - Click "New repository secret"
-   - Add the following secrets:
-     - `DOCKERHUB_USERNAME`: Your Docker Hub username
-     - `DOCKERHUB_TOKEN`: Your Docker Hub access token
+1. **Create S3 Bucket** - Create S3 bucket for Terraform state storage (must be done first)
+2. **Provision Infrastructure** - Use Terraform to create ECR repositories and IAM roles
+3. **Build Docker Images** - Builds all three container images (Database, Application, Web)
+4. **Push to ECR** - Pushes images to Amazon ECR repositories
+5. **Deploy to App Runner** - Automatically deploys and runs containers using Amazon App Runner
 
-### Workflow Details
+### Prerequisites
 
-The workflow (`/.github/workflows/docker-image.yaml`) performs the following steps:
+Before setting up the CI/CD pipeline, ensure you have:
 
-1. **Triggers** on push to the `docker-hub` branch
-2. **Sets up Docker Buildx** for enhanced Docker capabilities
-3. **Authenticates** with Docker Hub using the configured secrets
-4. **Builds and pushes** all three Docker images:
-   - `{your-username}/vprofiledb2:latest` (Database image)
-   - `{your-username}/vprofileapp2:latest` (Application image)
-   - `{your-username}/vprofileweb2:latest` (Web/NGINX image)
+- AWS Account with appropriate permissions
+- AWS CLI installed and configured
+- Terraform installed (version >= 1.0)
+- Docker installed locally (for testing)
+- GitHub repository (if using GitHub Actions)
 
-### Using the Published Images
+### Step 1: Create S3 Bucket for Terraform State
 
-After the workflow completes, you can pull and use the images:
+**⚠️ IMPORTANT: This must be done FIRST before running any Terraform commands.**
+
+The S3 bucket is required to store Terraform state files. You can create it manually or use the Makefile.
+
+#### Option A: Using Makefile (Recommended)
 
 ```bash
-# Pull the images
-docker pull {your-username}/vprofiledb2:latest
-docker pull {your-username}/vprofileapp2:latest
-docker pull {your-username}/vprofileweb2:latest
-
-# Or update docker-compose.yml to use your Docker Hub images
-services:
-  vprodb:
-    image: {your-username}/vprofiledb2:latest
-  vproapp:
-    image: {your-username}/vprofileapp2:latest
-  vproweb:
-    image: {your-username}/vprofileweb2:latest
+# Create S3 bucket with all security settings
+make create-s3
 ```
 
-### Workflow Features
+#### Option B: Manual AWS CLI Commands
 
-- ✅ Automated builds on code push
-- ✅ Multi-stage build optimization
-- ✅ Parallel image builds for faster CI/CD
-- ✅ Secure credential management with GitHub Secrets
-- ✅ Latest tag for easy deployment
+Create it manually from the command line:
+
+```bash
+# Set your AWS region
+export AWS_REGION="us-east-1"  # Change to your preferred region
+
+# Set your bucket name (must be globally unique)
+export BUCKET_NAME="your-terraform-state-bucket-name"
+
+# Create the S3 bucket
+aws s3api create-bucket \
+  --bucket $BUCKET_NAME \
+  --region $AWS_REGION \
+  --create-bucket-configuration LocationConstraint=$AWS_REGION
+
+# Enable versioning (recommended for state files)
+aws s3api put-bucket-versioning \
+  --bucket $BUCKET_NAME \
+  --versioning-configuration Status=Enabled
+
+# Enable encryption
+aws s3api put-bucket-encryption \
+  --bucket $BUCKET_NAME \
+  --server-side-encryption-configuration '{
+    "Rules": [{
+      "ApplyServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+      }
+    }]
+  }'
+
+# Block public access (security best practice)
+aws s3api put-public-access-block \
+  --bucket $BUCKET_NAME \
+  --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+# Verify bucket creation
+aws s3 ls | grep $BUCKET_NAME
+```
+
+**Note for us-east-1 region:**
+If you're using `us-east-1`, omit the `--create-bucket-configuration` parameter:
+
+```bash
+aws s3api create-bucket \
+  --bucket $BUCKET_NAME \
+  --region us-east-1
+```
+
+**Update Terraform Backend Configuration:**
+
+After creating the bucket, update the `state.tf` files in each module (`global/s3/state.tf`, `global/ecr/state.tf`, `global/iam/state.tf`) with your bucket name:
+
+```hcl
+terraform {
+  backend "s3" {
+    region       = "us-east-1"  # Your AWS region
+    bucket       = "your-terraform-state-bucket-name"  # Your bucket name
+    key          = "global/ecr/terraform.tfstate"  # Path for this module
+    use_lockfile = true
+    encrypt      = true
+  }
+}
+```
+
+**Optional: Create DynamoDB Table for State Locking**
+
+For production environments, create a DynamoDB table for state locking:
+
+```bash
+# Create DynamoDB table for state locking
+aws dynamodb create-table \
+  --table-name terraform-state-lock \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region $AWS_REGION
+
+# Verify table creation
+aws dynamodb describe-table --table-name terraform-state-lock --region $AWS_REGION
+```
+
+Then add the DynamoDB table to your Terraform backend configuration:
+
+```hcl
+terraform {
+  backend "s3" {
+    region         = "us-east-1"
+    bucket         = "your-terraform-state-bucket-name"
+    key            = "global/ecr/terraform.tfstate"
+    dynamodb_table = "terraform-state-lock"  # Add this line
+    use_lockfile   = true
+    encrypt        = true
+  }
+}
+```
+
+### Step 2: Environment Configuration
+
+#### 1. AWS Credentials Setup
+
+You need to configure your AWS credentials to authenticate with AWS services. You can do this in several ways:
+
+##### Option A: AWS CLI Configuration (Recommended for Local Development)
+
+```bash
+# Configure AWS CLI
+aws configure
+
+# You'll be prompted to enter:
+# - AWS Access Key ID: Your AWS access key
+# - AWS Secret Access Key: Your AWS secret access key
+# - Default region name: e.g., us-east-1, us-west-2, eu-west-1
+# - Default output format: json (recommended)
+```
+
+##### Option B: Environment Variables
+
+Set the following environment variables in your system or CI/CD environment:
+
+```bash
+# AWS Credentials
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_DEFAULT_REGION="us-east-1"  # or your preferred region
+```
+
+##### Option C: GitHub Secrets (For GitHub Actions)
+
+If using GitHub Actions, configure the following secrets in your repository:
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Add the following secrets:
+   - `AWS_ACCESS_KEY_ID`: Your AWS Access Key ID
+   - `AWS_SECRET_ACCESS_KEY`: Your AWS Secret Access Key
+   - `AWS_REGION`: Your AWS region (e.g., `us-east-1`, `us-west-2`, `eu-west-1`)
+
+#### 2. Required Environment Variables
+
+Configure the following environment variables for the CI/CD pipeline:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `AWS_ACCESS_KEY_ID` | Your AWS Access Key ID | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | Your AWS Secret Access Key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `AWS_REGION` | AWS region for ECR and App Runner | `us-east-1` |
+| `AWS_ACCOUNT_ID` | Your AWS Account ID (optional, can be auto-detected) | `123456789012` |
+| `ECR_REPOSITORY_PREFIX` | Prefix for ECR repository names (optional) | `vprofile` |
+
+#### 3. AWS Region Configuration
+
+Choose an AWS region that supports both ECR and App Runner. Common regions include:
+
+- `us-east-1` (N. Virginia)
+- `us-west-2` (Oregon)
+- `eu-west-1` (Ireland)
+- `ap-southeast-1` (Singapore)
+
+Set your region using one of these methods:
+
+```bash
+# Using AWS CLI
+aws configure set region us-east-1
+
+# Using environment variable
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_REGION=us-east-1
+```
+
+### Step 3: Provision Infrastructure with Terraform
+
+After creating the S3 bucket, use Terraform to provision ECR repositories and IAM roles.
+
+#### Option A: Using Makefile (Recommended)
+
+The project includes a Makefile that automates the deployment process:
+
+```bash
+# View all available commands
+make help
+
+# Deploy all infrastructure in order (S3 -> ECR -> IAM)
+make deploy-all
+
+# Or deploy individually:
+make deploy-ecr    # Deploy ECR repositories
+make deploy-iam    # Deploy IAM roles and policies
+```
+
+**Makefile Features:**
+- Automatically reads configuration from `state.config` and `global.tfvars`
+- Handles Terraform initialization with correct backend configuration
+- Provides colored output for better visibility
+- Includes validation, planning, and destruction targets
+
+#### Option B: Manual Terraform Commands
+
+If you prefer to run Terraform manually:
+
+```bash
+# Navigate to the global directory
+cd global
+
+# Deploy ECR repositories
+cd ecr
+terraform init -backend-config="bucket=your-bucket-name" -backend-config="region=us-east-1"
+terraform plan -var-file=../../global.tfvars
+terraform apply -var-file=../../global.tfvars
+
+# Deploy IAM resources
+cd ../iam
+terraform init -backend-config="bucket=your-bucket-name" -backend-config="region=us-east-1"
+terraform plan -var-file=../../global.tfvars
+terraform apply -var-file=../../global.tfvars
+```
+
+This will create:
+- **3 ECR Repositories**: `vprofiledb`, `vprofileapp`, `vprofileweb`
+- **IAM Role**: For GitHub Actions to push/pull images
+- **OIDC Provider**: For secure GitHub Actions authentication
+
+### Step 4: ECR Repository Setup (Alternative Manual Method)
+
+If you prefer to create ECR repositories manually instead of using Terraform:
+
+```bash
+# Set your AWS region
+export AWS_REGION=us-east-1
+
+# Create ECR repositories
+aws ecr create-repository --repository-name vprofiledb --region $AWS_REGION
+aws ecr create-repository --repository-name vprofileapp --region $AWS_REGION
+aws ecr create-repository --repository-name vprofileweb --region $AWS_REGION
+```
+
+Or create them via AWS Console:
+1. Navigate to **Amazon ECR** in AWS Console
+2. Click **Create repository**
+3. Create repositories: `vprofiledb`, `vprofileapp`, `vprofileweb`
+4. Note the repository URIs (format: `{account-id}.dkr.ecr.{region}.amazonaws.com/{repo-name}`)
+
+### App Runner Configuration
+
+Configure Amazon App Runner to deploy your containers:
+
+1. **Create App Runner Service** via AWS Console or CLI
+2. **Source Configuration**: Point to your ECR repositories
+3. **Build Configuration**: Use the Dockerfile from this repository
+4. **Service Configuration**: Configure port mappings, environment variables, and scaling
+
+Example App Runner service configuration:
+- **Port**: `80` (for web service) or `8080` (for app service)
+- **Auto-deploy**: Enable automatic deployments on image push
+- **Health check**: Configure health check endpoints
+
+### CI/CD Workflow
+
+The pipeline workflow typically includes:
+
+1. **Checkout Code** - Pulls the latest code from repository
+2. **Configure AWS Credentials** - Authenticates with AWS using provided credentials
+3. **Login to ECR** - Authenticates Docker with Amazon ECR
+4. **Build Docker Images** - Builds all three images:
+   - `vprofiledb` (Database image)
+   - `vprofileapp` (Application image)
+   - `vprofileweb` (Web/NGINX image)
+5. **Tag Images** - Tags images with ECR repository URIs
+6. **Push to ECR** - Pushes images to respective ECR repositories
+7. **Deploy to App Runner** - Triggers App Runner deployment (if configured)
+
+### Manual Deployment Steps
+
+If you want to manually build and push images:
+
+```bash
+# Set your variables
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export ECR_REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+# Login to ECR
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+# Build and push database image
+docker build -f Docker-files/db/Dockerfile -t $ECR_REGISTRY/vprofiledb:latest ./Docker-files/db
+docker push $ECR_REGISTRY/vprofiledb:latest
+
+# Build and push application image
+docker build -f Docker-files/app/multistage/Dockerfile -t $ECR_REGISTRY/vprofileapp:latest .
+docker push $ECR_REGISTRY/vprofileapp:latest
+
+# Build and push web image
+docker build -f Docker-files/web/Dockerfile -t $ECR_REGISTRY/vprofileweb:latest ./Docker-files/web
+docker push $ECR_REGISTRY/vprofileweb:latest
+```
+
+### Security Best Practices
+
+- ✅ **Never commit AWS credentials** to version control
+- ✅ Use **IAM roles** with least privilege principle
+- ✅ **Rotate access keys** regularly
+- ✅ Use **GitHub Secrets** or similar secure storage for CI/CD
+- ✅ Enable **ECR image scanning** for security vulnerabilities
+- ✅ Use **private ECR repositories** for production
+
+### Troubleshooting
+
+**Issue: Authentication failed**
+- Verify AWS credentials are correct
+- Check IAM permissions for ECR and App Runner
+- Ensure region matches your ECR repositories
+
+**Issue: ECR repository not found**
+- Verify repository names match exactly
+- Check repository exists in the specified region
+- Ensure you have permissions to access the repository
+
+**Issue: App Runner deployment fails**
+- Verify ECR image URIs are correct
+- Check App Runner service configuration
+- Review App Runner logs in CloudWatch
 
 ---
 
