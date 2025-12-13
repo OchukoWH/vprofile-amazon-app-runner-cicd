@@ -1,5 +1,5 @@
 locals {
-  github_subs = [for item in var.github_repos : "repo:${item}:ref:refs/heads/*"]
+  github_subs = ["repo:${var.github_repo}:ref:refs/heads/*"]
   ecr_repos   = [
     "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repo_db}",
     "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/${var.ecr_repo_app}",

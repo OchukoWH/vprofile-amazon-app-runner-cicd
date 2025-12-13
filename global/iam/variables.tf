@@ -8,9 +8,9 @@ variable "bucket" {
   description = "S3 bucket for terraform state."
 }
 
-variable "github_repos" {
-  type        = list(string)
-  description = "GitHub repositories."
+variable "github_repo" {
+  type        = string
+  description = "GitHub repository."
 }
 
 variable "ecr_repo_db" {

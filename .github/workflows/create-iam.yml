@@ -16,7 +16,7 @@ on:
 env:
   TF_VAR_region: ${{ vars.TF_VAR_REGION }}
   TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
-  TF_VAR_github_repos: ${{ vars.TF_VAR_GITHUB_REPOS || format('{0}/{1}', github.repository_owner, github.event.repository.name) }}
+  TF_VAR_github_repo: ${{ vars.TF_VAR_GITHUB_REPO }}
   TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB }}
   TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP }}
   TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB }}
