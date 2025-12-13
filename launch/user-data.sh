@@ -3,12 +3,14 @@ set -euo pipefail
 
 # Variables from Terraform
 AWS_REGION="${aws_region}"
+AWS_ACCOUNT_ID="${aws_account_id}"
 ECR_REPO_DB="${ecr_repo_db}"
 ECR_REPO_APP="${ecr_repo_app}"
 ECR_REPO_WEB="${ecr_repo_web}"
 
+
 # ECR Registry URL (using template variables directly)
-ECR_REGISTRY="${aws_account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
 # Logging
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
