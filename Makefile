@@ -67,21 +67,34 @@ help:
 # ==============================================================================
 init-s3:
 	@echo "$(GREEN)Initializing S3 backend...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
 		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
 			-input=false \
 			-no-color
 
 deploy-s3:
 	@echo "$(GREEN)Deploying S3 backend...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
 		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
 			-input=false \
 			-no-color && \
 		terraform plan \
 			-input=false \
 			-no-color \
 			-compact-warnings \
+			-var-file=../../$(TFVARS) \
 			-out=tfplan && \
 		terraform apply \
 			-input=false \
@@ -96,8 +109,9 @@ update-state-configs:
 		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
 	@if [ -z "$$TF_VAR_region" ]; then \
 		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
+	@echo "$(YELLOW)Updating $(S3_DIR)/state.tf...$(NC)"
 	@printf 'terraform {\n  backend "s3" {\n    region  = "%s"\n    bucket  = "%s"\n    key     = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$$TF_VAR_region" "$$TF_VAR_bucket" > $(S3_DIR)/state.tf
-	@echo "$(GREEN)✓ Backend config updated$(NC)"
+	@echo "$(GREEN)✓ All backend configs updated$(NC)"
 
 migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
@@ -119,10 +133,31 @@ migrate-s3-backend:
 # ==============================================================================
 deploy-ecr:
 	@echo "$(GREEN)Deploying ECR repositories...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_ecr_repo_db" ]; then \
+		echo "$(RED)Error: TF_VAR_ecr_repo_db not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_ecr_repo_app" ]; then \
+		echo "$(RED)Error: TF_VAR_ecr_repo_app not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_ecr_repo_web" ]; then \
+		echo "$(RED)Error: TF_VAR_ecr_repo_web not set$(NC)"; exit 1; fi
 	@cd $(ECR_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -out=tfplan && \
-		terraform apply -auto-approve tfplan && \
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform plan \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-out=tfplan && \
+		terraform apply \
+			-input=false \
+			-auto-approve \
+			tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ ECR repositories deployed successfully$(NC)"
 	@echo "$(YELLOW)ECR Repositories created:$(NC)"
@@ -130,10 +165,26 @@ deploy-ecr:
 
 deploy-iam:
 	@echo "$(GREEN)Deploying IAM roles and policies...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(IAM_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings -out=tfplan && \
-		terraform apply -auto-approve tfplan && \
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform plan \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-var-file=../../$(TFVARS) \
+			-out=tfplan && \
+		terraform apply \
+			-input=false \
+			-auto-approve \
+			tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ IAM resources deployed successfully$(NC)"
 	@echo "$(YELLOW)IAM Role ARN:$(NC)"
@@ -155,14 +206,38 @@ deploy-all: create-s3 deploy-s3 migrate-s3-backend deploy-infrastructure
 # Planning Targets
 # ==============================================================================
 plan-ecr:
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(ECR_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform plan \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-var-file=../../$(TFVARS)
 
 plan-iam:
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(IAM_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform plan -compact-warnings
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform plan \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-var-file=../../$(TFVARS)
 
 plan-all: plan-ecr plan-iam
 	@echo "$(GREEN)Planning completed$(NC)"
@@ -186,16 +261,42 @@ validate-all: validate-ecr validate-iam
 # ==============================================================================
 destroy-ecr:
 	@echo "$(RED)Destroying ECR repositories...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(ECR_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform destroy -compact-warnings -auto-approve
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform destroy \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-var-file=../../$(TFVARS) \
+			-auto-approve
 	@echo "$(GREEN)✓ ECR repositories destroyed$(NC)"
 
 destroy-iam:
 	@echo "$(RED)Destroying IAM resources...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(IAM_DIR) && \
-		terraform init -backend-config=../../$(STATE_CONFIG) && \
-		terraform destroy -compact-warnings -auto-approve
+		terraform init \
+			-backend-config="bucket=$$TF_VAR_bucket" \
+			-backend-config="region=$$TF_VAR_region" \
+			-input=false \
+			-no-color && \
+		terraform destroy \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-var-file=../../$(TFVARS) \
+			-auto-approve
 	@echo "$(GREEN)✓ IAM resources destroyed$(NC)"
 
 destroy-all: destroy-iam destroy-ecr

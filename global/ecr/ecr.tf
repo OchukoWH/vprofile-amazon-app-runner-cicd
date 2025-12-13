@@ -13,7 +13,7 @@ module "ecr_db" {
         selection = {
           tagStatus       = "tagged",
           tagPatternList  = ["v*", "latest"],
-          countType       = "imageCountMoreThan",
+          countType       = "imageCountMoreThan", 
           countNumber     = 30
         },
         action = {
@@ -41,7 +41,6 @@ module "ecr_db" {
   tags = {
     Name        = var.ecr_repo_db
     Service     = "database"
-    Environment = var.environment
   }
 }
 
@@ -88,7 +87,6 @@ module "ecr_app" {
   tags = {
     Name        = var.ecr_repo_app
     Service     = "application"
-    Environment = var.environment
   }
 }
 
@@ -135,6 +133,5 @@ module "ecr_web" {
   tags = {
     Name        = var.ecr_repo_web
     Service     = "web"
-    Environment = var.environment
   }
 }
