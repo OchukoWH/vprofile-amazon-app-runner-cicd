@@ -67,39 +67,49 @@ help:
 # ==============================================================================
 init-s3:
 	@echo "$(GREEN)Initializing S3 backend...$(NC)"
-	@cd $(S3_DIR) && terraform init
+	@cd $(S3_DIR) && \
+		terraform init \
+			-input=false \
+			-no-color
 
 deploy-s3:
 	@echo "$(GREEN)Deploying S3 backend...$(NC)"
 	@cd $(S3_DIR) && \
-		terraform init && \
-		terraform plan -compact-warnings -out=tfplan && \
-		terraform apply -auto-approve tfplan && \
+		terraform init \
+			-input=false \
+			-no-color && \
+		terraform plan \
+			-input=false \
+			-no-color \
+			-compact-warnings \
+			-out=tfplan && \
+		terraform apply \
+			-input=false \
+			-auto-approve \
+			tfplan && \
 		rm -f tfplan
 	@echo "$(GREEN)✓ S3 backend deployed$(NC)"
-	@echo "$(BLUE)2. Then run:$(NC)"
-	@echo "   make migrate-s3-backend"
-	@echo "$(YELLOW)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━$(NC)"
 
 update-state-configs:
 	@echo "$(GREEN)Updating state.tf files with bucket and region...$(NC)"
 	@if [ -z "$(BUCKET)" ]; then \
-		echo "$(RED)Error: bucket variable not set in $(STATE_CONFIG)$(NC)"; \
-		exit 1; \
-	fi
+		echo "$(RED)Error: BUCKET variable not set$(NC)"; exit 1; fi
 	@if [ -z "$(REGION)" ]; then \
-		echo "$(RED)Error: region variable not set in $(STATE_CONFIG)$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)Updating $(S3_DIR)/state.tf...$(NC)"
-	@printf 'terraform {\n  backend "s3" {\n    region = "%s"\n    bucket = "%s"\n    key    = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$(REGION)" "$(BUCKET)" > $(S3_DIR)/state.tf
-	@echo "$(YELLOW)You can now run: make migrate-s3-backend$(NC)"
+		echo "$(RED)Error: REGION variable not set$(NC)"; exit 1; fi
+	@printf 'terraform {\n  backend "s3" {\n    region  = "%s"\n    bucket  = "%s"\n    key     = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$(REGION)" "$(BUCKET)" > $(S3_DIR)/state.tf
+	@echo "$(GREEN)✓ Backend config updated$(NC)"
 
 migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
 	@cd $(S3_DIR) && \
-		echo "yes" | terraform init -migrate-state -backend-config=../../$(STATE_CONFIG)
+		terraform init \
+			-migrate-state \
+			-reconfigure \
+			-backend-config=../../$(STATE_CONFIG) \
+			-input=false \
+			-no-color
 	@echo "$(GREEN)✓ S3 backend state migrated$(NC)"
+
 
 
 # ==============================================================================
