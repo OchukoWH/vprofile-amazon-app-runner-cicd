@@ -11,7 +11,7 @@ This project demonstrates advanced Docker concepts including:
 - **Service discovery** and inter-container communication
 - **Persistent data management** with Docker volumes
 - **Load balancing** with Nginx reverse proxy
-- **Database containerization** with initialization scripts
+- **Database containerization** with initialization scripts.
 
 ## 🏗️ Architecture Overview
 
