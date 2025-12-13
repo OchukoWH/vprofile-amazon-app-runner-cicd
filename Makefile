@@ -74,30 +74,10 @@ migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
 	@cd $(S3_DIR) && \
 		echo "yes" | terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
+			-backend-config=../../$(STATE_CONFIG) \
 			-migrate-state \
 			-no-color
-	@cd $(ECR_DIR) && \
-		echo "yes" | terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
-			-migrate-state \
-			-no-color
-	@cd $(IAM_DIR) && \
-		echo "yes" | terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
-			-migrate-state \
-			-no-color
-	@cd $(LAUNCH_DIR) && \
-		echo "yes" | terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
-			-migrate-state \
-			-no-color
-	@echo "$(GREEN)✓ All backend states migrated$(NC)"
-
+	@echo "$(GREEN)✓ S3 backend state migrated$(NC)"
 
 
 # ==============================================================================

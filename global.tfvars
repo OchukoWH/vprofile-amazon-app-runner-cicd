@@ -1,4 +1,2 @@
-region = "us-east-1"                   
-bucket = "ochuko-3452"       
-aws_region = "us-east-1"               
-project_name = "vprofile"            
+region = "us-east-2"                   
+bucket = "ochuko-34525"                             

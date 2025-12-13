@@ -1,10 +1,6 @@
 name: Create ECR Repositories
 
 on:
-  workflow_run:
-    workflows: ["Bootstrap S3 Backend for Terraform State"]
-    types:
-      - completed
   push:
     branches:
       - state

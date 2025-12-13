@@ -1,12 +1,17 @@
 name: Docker Image CI/CD
 
 on:
+  workflow_run:
+    workflows: ["Create ECR Repositories"]
+    types:
+      - completed
   push:
     branches: 
       - "state"
     paths:
       - 'Docker-files/**'
       - '.github/workflows/docker-image.yaml'
+   
 
 env:
   AWS_REGION: ${{ vars.TF_VAR_REGION }}
