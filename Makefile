@@ -153,7 +153,6 @@ deploy-iam:
 			-input=false \
 			-no-color \
 			-compact-warnings \
-			-var-file=../../$(TFVARS) \
 			-out=tfplan && \
 		terraform apply \
 			-input=false \
