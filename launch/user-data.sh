@@ -57,7 +57,14 @@ docker-compose --version
 
 # Login to ECR
 echo "Logging in to ECR..."
-aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+echo "ECR Registry: $ECR_REGISTRY"
+echo "AWS Region: $AWS_REGION"
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY" || {
+  echo "❌ Failed to login to ECR. Checking IAM permissions..."
+  aws sts get-caller-identity
+  exit 1
+}
+echo "✅ Successfully logged in to ECR"
 
 # Create application directory
 APP_DIR="/opt/vprofile"
@@ -65,10 +72,11 @@ mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
 # Create docker-compose.yml file for ECR images
+# Note: Using staging-latest tag as that's what the Docker workflow pushes
 cat > docker-compose.yml <<EOF
 services:
   vprodb:
-    image: "$ECR_REGISTRY/$ECR_REPO_DB:latest"
+    image: "$ECR_REGISTRY/$ECR_REPO_DB:staging-latest"
     container_name: vprodb
     ports:
       - "3306:3306"
@@ -96,7 +104,7 @@ services:
     restart: unless-stopped
 
   vproapp:
-    image: "$ECR_REGISTRY/$ECR_REPO_APP:latest"
+    image: "$ECR_REGISTRY/$ECR_REPO_APP:staging-latest"
     container_name: vproapp
     ports:
       - "8080:8080"
@@ -109,7 +117,7 @@ services:
     restart: unless-stopped
     
   vproweb:
-    image: "$ECR_REGISTRY/$ECR_REPO_WEB:latest"
+    image: "$ECR_REGISTRY/$ECR_REPO_WEB:staging-latest"
     container_name: vproweb
     ports:
       - "80:80"
@@ -124,9 +132,39 @@ EOF
 
 # Pull Docker images from ECR
 echo "Pulling Docker images from ECR..."
-docker pull "$ECR_REGISTRY/$ECR_REPO_DB:latest" || echo "Warning: Failed to pull $ECR_REPO_DB"
-docker pull "$ECR_REGISTRY/$ECR_REPO_APP:latest" || echo "Warning: Failed to pull $ECR_REPO_APP"
-docker pull "$ECR_REGISTRY/$ECR_REPO_WEB:latest" || echo "Warning: Failed to pull $ECR_REPO_WEB"
+echo "Available images in ECR repositories:"
+aws ecr describe-images --repository-name "$ECR_REPO_DB" --region "$AWS_REGION" --query 'imageDetails[*].imageTags' --output table || echo "No images found in $ECR_REPO_DB"
+aws ecr describe-images --repository-name "$ECR_REPO_APP" --region "$AWS_REGION" --query 'imageDetails[*].imageTags' --output table || echo "No images found in $ECR_REPO_APP"
+aws ecr describe-images --repository-name "$ECR_REPO_WEB" --region "$AWS_REGION" --query 'imageDetails[*].imageTags' --output table || echo "No images found in $ECR_REPO_WEB"
+
+echo "Pulling $ECR_REGISTRY/$ECR_REPO_DB:staging-latest"
+docker pull "$ECR_REGISTRY/$ECR_REPO_DB:staging-latest" || {
+  echo "❌ Failed to pull $ECR_REPO_DB:staging-latest"
+  echo "Trying :latest tag..."
+  docker pull "$ECR_REGISTRY/$ECR_REPO_DB:latest" || {
+    echo "❌ Also failed to pull :latest tag"
+    exit 1
+  }
+}
+echo "Pulling $ECR_REGISTRY/$ECR_REPO_APP:staging-latest"
+docker pull "$ECR_REGISTRY/$ECR_REPO_APP:staging-latest" || {
+  echo "❌ Failed to pull $ECR_REPO_APP:staging-latest"
+  echo "Trying :latest tag..."
+  docker pull "$ECR_REGISTRY/$ECR_REPO_APP:latest" || {
+    echo "❌ Also failed to pull :latest tag"
+    exit 1
+  }
+}
+echo "Pulling $ECR_REGISTRY/$ECR_REPO_WEB:staging-latest"
+docker pull "$ECR_REGISTRY/$ECR_REPO_WEB:staging-latest" || {
+  echo "❌ Failed to pull $ECR_REPO_WEB:staging-latest"
+  echo "Trying :latest tag..."
+  docker pull "$ECR_REGISTRY/$ECR_REPO_WEB:latest" || {
+    echo "❌ Also failed to pull :latest tag"
+    exit 1
+  }
+}
+echo "✅ All ECR images pulled successfully"
 
 # Pull public images
 docker pull memcached:latest
@@ -134,7 +172,15 @@ docker pull rabbitmq:latest
 
 # Start containers with Docker Compose
 echo "Starting containers with Docker Compose..."
-docker-compose up -d
+echo "Current directory: $(pwd)"
+echo "Docker Compose file exists: $([ -f docker-compose.yml ] && echo 'yes' || echo 'no')"
+cat docker-compose.yml
+docker-compose up -d || {
+  echo "❌ Failed to start containers with docker-compose"
+  docker-compose ps
+  docker-compose logs
+  exit 1
+}
 
 # Wait for services to be ready
 echo "Waiting for services to start..."
