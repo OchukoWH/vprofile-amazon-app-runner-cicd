@@ -10,7 +10,6 @@ on:
       - state
     paths:
       - 'global/iam/**'
-      - 'global.tfvars'
       - '.github/workflows/create-iam.yml'
 
 env:
