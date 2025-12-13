@@ -146,8 +146,6 @@ deploy-iam:
 # ==============================================================================
 init-launch:
 	@echo "$(GREEN)Initializing launch module...$(NC)"
-	@if [ -z "$$TF_VAR_aws_region" ]; then \
-		echo "$(RED)Error: TF_VAR_aws_region not set$(NC)"; exit 1; fi
 	@if [ -z "$$TF_VAR_bucket" ]; then \
 		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
 	@if [ -z "$$TF_VAR_region" ]; then \

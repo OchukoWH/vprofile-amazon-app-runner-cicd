@@ -36,7 +36,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-          aws-region: ${{ env.TF_VAR_aws_region }}
+          aws-region: ${{ env.TF_VAR_region }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -72,8 +72,8 @@ jobs:
           echo "- **Application URL:** ${{ steps.ec2-info.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🔗 View in AWS Console" >> $GITHUB_STEP_SUMMARY
-          echo "- [EC2 Instance](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }})" >> $GITHUB_STEP_SUMMARY
-          echo "- [EC2 Dashboard](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [EC2 Instance](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [EC2 Dashboard](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ EC2 instance is running and application should be available shortly" >> $GITHUB_STEP_SUMMARY
           
@@ -83,5 +83,5 @@ jobs:
           echo "   Public IP: ${{ steps.ec2-info.outputs.public_ip }}"
           echo "   Public DNS: ${{ steps.ec2-info.outputs.public_dns }}"
           echo "   Application URL: ${{ steps.ec2-info.outputs.app_url }}"
-          echo "   View: https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }}"
+          echo "   View: https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }}"
 
