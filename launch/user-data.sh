@@ -10,7 +10,7 @@ ECR_REPO_WEB="${ecr_repo_web}"
 
 
 # ECR Registry URL (using template variables directly)
-ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+ECR_REGISTRY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
 # Logging
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
@@ -57,18 +57,18 @@ docker-compose --version
 
 # Login to ECR
 echo "Logging in to ECR..."
-aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
 # Create application directory
 APP_DIR="/opt/vprofile"
 mkdir -p "${APP_DIR}"
-cd ${APP_DIR}
+cd "$APP_DIR"
 
 # Create docker-compose.yml file for ECR images
 cat > docker-compose.yml <<EOF
 services:
   vprodb:
-    image: ${ECR_REGISTRY}/${ECR_REPO_DB}:latest
+    image: "$ECR_REGISTRY/$ECR_REPO_DB:latest"
     container_name: vprodb
     ports:
       - "3306:3306"
@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
 
   vproapp:
-    image: ${ECR_REGISTRY}/${ECR_REPO_APP}:latest
+    image: "$ECR_REGISTRY/$ECR_REPO_APP:latest"
     container_name: vproapp
     ports:
       - "8080:8080"
@@ -109,7 +109,7 @@ services:
     restart: unless-stopped
     
   vproweb:
-    image: ${ECR_REGISTRY}/${ECR_REPO_WEB}:latest
+    image: "$ECR_REGISTRY/$ECR_REPO_WEB:latest"
     container_name: vproweb
     ports:
       - "80:80"
@@ -124,9 +124,9 @@ EOF
 
 # Pull Docker images from ECR
 echo "Pulling Docker images from ECR..."
-docker pull "${ECR_REGISTRY}/${ECR_REPO_DB}:latest" || echo "Warning: Failed to pull ${ECR_REPO_DB}"
-docker pull "${ECR_REGISTRY}/${ECR_REPO_APP}:latest" || echo "Warning: Failed to pull ${ECR_REPO_APP}"
-docker pull "${ECR_REGISTRY}/${ECR_REPO_WEB}:latest" || echo "Warning: Failed to pull ${ECR_REPO_WEB}"
+docker pull "$ECR_REGISTRY/$ECR_REPO_DB:latest" || echo "Warning: Failed to pull $ECR_REPO_DB"
+docker pull "$ECR_REGISTRY/$ECR_REPO_APP:latest" || echo "Warning: Failed to pull $ECR_REPO_APP"
+docker pull "$ECR_REGISTRY/$ECR_REPO_WEB:latest" || echo "Warning: Failed to pull $ECR_REPO_WEB"
 
 # Pull public images
 docker pull memcached:latest
