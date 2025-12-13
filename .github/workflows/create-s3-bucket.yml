@@ -10,8 +10,8 @@ on:
       - 'Makefile'
 
 env:
-  TF_VAR_REGION: ${{ secrets.TF_VAR_REGION || 'us-east-1' }}
-  TF_VAR_BUCKET: ${{ secrets.TF_VAR_BUCKET }}
+   TF_VAR_region: ${{ vars.TF_VAR_REGION }}
+   TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
 
 jobs:
 
