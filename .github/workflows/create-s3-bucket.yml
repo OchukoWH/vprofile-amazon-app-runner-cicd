@@ -10,8 +10,8 @@ on:
       - 'Makefile'
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-  TF_BUCKET: ${{ secrets.TF_BUCKET }}
+  TF_VAR_REGION: ${{ secrets.TF_VAR_REGION || 'us-east-1' }}
+  TF_VAR_BUCKET: ${{ secrets.TF_VAR_BUCKET }}
 
 jobs:
 
@@ -28,11 +28,11 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ env.TF_VAR_REGION }}
 
       - name: Guard – fail if S3 state bucket already exists
         run: |
-          if aws s3api head-bucket --bucket "${TF_BUCKET}" 2>/dev/null; then
+          if aws s3api head-bucket --bucket "${TF_VAR_BUCKET}" 2>/dev/null; then
             echo "❌ Terraform state bucket already exists. This workflow must only run once."
             exit 1
           else
@@ -57,7 +57,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ env.TF_VAR_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -66,8 +66,8 @@ jobs:
 
       - name: Create state.config
         run: |
-          echo "region = \"${AWS_REGION}\"" > state.config
-          echo "bucket = \"${TF_BUCKET}\"" >> state.config
+          echo "region = \"${TF_VAR_REGION}\"" > state.config
+          echo "bucket = \"${TF_VAR_BUCKET}\"" >> state.config
 
       - name: Create S3 bucket and backend infra
         run: |
