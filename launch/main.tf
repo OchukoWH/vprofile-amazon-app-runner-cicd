@@ -9,7 +9,7 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 }
 
 # Get current AWS account ID
@@ -30,7 +30,7 @@ data "aws_subnets" "default" {
 
 # IAM Role for EC2 instance to access ECR
 resource "aws_iam_role" "ec2_ecr_role" {
-  name = "${var.project_name}-ec2-ecr-role"
+  name = "vprofile-ec2-ecr-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -46,14 +46,15 @@ resource "aws_iam_role" "ec2_ecr_role" {
   })
 
   tags = {
-    Name        = "${var.project_name}-ec2-ecr-role"
-    Environment = var.environment
+    Name        = "vprofile-ec2-ecr-role"
+    Environment = "state"
+    Project     = "vprofile"
   }
 }
 
 # IAM Policy for ECR access
 resource "aws_iam_role_policy" "ec2_ecr_policy" {
-  name = "${var.project_name}-ec2-ecr-policy"
+  name = "vprofile-ec2-ecr-policy"
   role = aws_iam_role.ec2_ecr_role.id
 
   policy = jsonencode({
@@ -75,18 +76,19 @@ resource "aws_iam_role_policy" "ec2_ecr_policy" {
 
 # Instance Profile
 resource "aws_iam_instance_profile" "ec2_ecr_profile" {
-  name = "${var.project_name}-ec2-ecr-profile"
+  name = "vprofile-ec2-ecr-profile"
   role = aws_iam_role.ec2_ecr_role.name
 
   tags = {
-    Name        = "${var.project_name}-ec2-ecr-profile"
-    Environment = var.environment
+    Name        = "vprofile-ec2-ecr-profile"
+    Environment = "state"
+    Project     = "vprofile"
   }
 }
 
 # Security Group for EC2 instance
 resource "aws_security_group" "ec2_sg" {
-  name        = "${var.project_name}-ec2-sg"
+  name        = "vprofile-ec2-sg"
   description = "Security group for VProfile EC2 instance running Docker Compose"
   vpc_id      = data.aws_vpc.default.id
 
@@ -118,20 +120,21 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   tags = {
-    Name        = "${var.project_name}-ec2-sg"
-    Environment = var.environment
+    Name        = "vprofile-ec2-sg"
+    Environment = "state"
+    Project     = "vprofile"
   }
 }
 
 # EC2 Instance
 resource "aws_instance" "vprofile_app" {
-  ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.amazon_linux.id
-  instance_type          = var.instance_type
-  key_name               = var.key_pair_name != "" ? var.key_pair_name : null
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t2.medium"
+  key_name               = "vprofile-key"
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_ecr_profile.name
   user_data              = base64encode(templatefile("${path.module}/user-data.sh", {
-    aws_region     = var.aws_region
+    aws_region     = var.region
     aws_account_id = data.aws_caller_identity.current.account_id
     ecr_repo_db    = var.ecr_repo_db
     ecr_repo_app   = var.ecr_repo_app
@@ -140,25 +143,25 @@ resource "aws_instance" "vprofile_app" {
 
   root_block_device {
     volume_type = "gp3"
-    volume_size = var.root_volume_size
+    volume_size = 30
     encrypted   = true
   }
 
   tags = {
-    Name        = "${var.project_name}-ec2-instance"
-    Environment = var.environment
-    Project     = var.project_name
+    Name        = "vprofile-app"
+    Environment = "state"
+    Project     = "vprofile"
   }
 }
 
-# Get latest Amazon Linux 2023 AMI
-data "aws_ami" "amazon_linux" {
+# Get latest Ubuntu AMI
+data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["amazon"]
+  owners      = ["099720109477"] # Canonical
 
   filter {
     name   = "name"
-    values = ["al2023-ami-*-x86_64"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
   }
 
   filter {

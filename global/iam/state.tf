@@ -1,8 +1,8 @@
-# terraform {
-#   backend "s3" {
-#     region = "us-east-1"
-#     bucket = "ochuko-terraform-state-new3"
-#     key    = "global/iam/terraform.tfstate"
-#     encrypt = true
-#   }
-# }
+terraform {
+  backend "s3" {
+    region  = "" # Set by Makefile update-state-configs or -backend-config flags
+    bucket  = "" # Set by Makefile update-state-configs or -backend-config flags
+    key     = "global/iam/terraform.tfstate"
+    encrypt = true
+  }
+}

@@ -1,0 +1,87 @@
+name: Deploy EC2 Instance
+
+on:
+  workflow_run:
+    workflows: ["Docker Image CI/CD"]
+    types:
+      - completed
+  push:
+    branches:
+      - state
+    paths:
+      - 'launch/**'
+      - '.github/workflows/deploy-ec2.yml'
+      - 'Makefile'
+
+env:
+  TF_VAR_region: ${{ vars.TF_VAR_REGION }}
+  TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
+  TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB }}
+  TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP }}
+  TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB }}
+
+jobs:
+  deploy:
+    name: Deploy EC2 Instance
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+    environment: state
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_aws_region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+
+      - name: Deploy EC2 instance using Makefile
+        run: make launch
+
+      - name: Get EC2 instance information
+        id: ec2-info
+        run: |
+          cd launch
+          INSTANCE_ID=$(terraform output -raw ec2_instance_id 2>/dev/null || echo "")
+          PUBLIC_IP=$(terraform output -raw ec2_instance_public_ip 2>/dev/null || echo "")
+          PUBLIC_DNS=$(terraform output -raw ec2_instance_public_dns 2>/dev/null || echo "")
+          APP_URL=$(terraform output -raw application_url 2>/dev/null || echo "")
+          
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+          echo "public_dns=$PUBLIC_DNS" >> $GITHUB_OUTPUT
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+
+      - name: Output EC2 Instance Information
+        run: |
+          echo "## 🚀 EC2 Instance Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Instance Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Instance ID:** \`${{ steps.ec2-info.outputs.instance_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Public IP:** \`${{ steps.ec2-info.outputs.public_ip }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Public DNS:** \`${{ steps.ec2-info.outputs.public_dns }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application URL:** ${{ steps.ec2-info.outputs.app_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 View in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "- [EC2 Instance](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [EC2 Dashboard](https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ EC2 instance is running and application should be available shortly" >> $GITHUB_STEP_SUMMARY
+          
+          echo ""
+          echo "🚀 EC2 Instance Deployed:"
+          echo "   Instance ID: ${{ steps.ec2-info.outputs.instance_id }}"
+          echo "   Public IP: ${{ steps.ec2-info.outputs.public_ip }}"
+          echo "   Public DNS: ${{ steps.ec2-info.outputs.public_dns }}"
+          echo "   Application URL: ${{ steps.ec2-info.outputs.app_url }}"
+          echo "   View: https://console.aws.amazon.com/ec2/home?region=${{ env.TF_VAR_aws_region }}#InstanceDetails:instanceId=${{ steps.ec2-info.outputs.instance_id }}"
+
