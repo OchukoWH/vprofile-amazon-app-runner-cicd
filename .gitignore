@@ -18,3 +18,8 @@ override.tf.json
 *.swo
 *~
 
+# SSH keys
+*.pem
+*.pem.pub
+*.pub
+

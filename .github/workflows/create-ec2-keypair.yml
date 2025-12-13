@@ -1,0 +1,58 @@
+name: Create EC2 Key Pair
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - state
+    paths:
+      - '.github/workflows/create-ec2-keypair.yml'
+
+env:
+  AWS_REGION: ${{ vars.TF_VAR_REGION }}
+
+jobs:
+  create-keypair:
+    name: Create EC2 Key Pair
+    runs-on: ubuntu-latest
+    environment: state
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create or update EC2 Key Pair
+        run: |
+          KEY_NAME="vprofile-key"
+          REGION="${{ env.AWS_REGION }}"
+          PUBLIC_KEY="${{ secrets.EC2_PUBLIC_KEY }}"
+          
+          if [ -z "$PUBLIC_KEY" ]; then
+            echo "❌ Error: EC2_PUBLIC_KEY secret not found in GitHub Secrets"
+            echo "Please add your public key to GitHub Secrets → EC2_PUBLIC_KEY"
+            echo ""
+            echo "To generate the key pair, run: ./scripts/generate-keys.sh"
+            exit 1
+          fi
+          
+          # Check if key pair already exists
+          if aws ec2 describe-key-pairs --key-names "$KEY_NAME" --region "$REGION" 2>/dev/null; then
+            echo "ℹ️  Key pair '$KEY_NAME' already exists. Updating..."
+            # Delete existing key pair
+            aws ec2 delete-key-pair --key-name "$KEY_NAME" --region "$REGION" 2>/dev/null || true
+            sleep 2
+          fi
+          
+          # Create new key pair with public key from GitHub Secrets
+          echo "$PUBLIC_KEY" > /tmp/public_key.pub
+          aws ec2 import-key-pair \
+            --key-name "$KEY_NAME" \
+            --public-key-material fileb:///tmp/public_key.pub \
+            --region "$REGION"
+          
+          echo "✅ EC2 Key Pair '$KEY_NAME' created/updated successfully"
+          rm -f /tmp/public_key.pub

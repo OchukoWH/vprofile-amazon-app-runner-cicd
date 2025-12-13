@@ -126,11 +126,17 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
+# EC2 Key Pair - Created by GitHub Actions workflow from EC2_PUBLIC_KEY secret
+# This data source references the existing key pair created by the workflow
+data "aws_key_pair" "vprofile" {
+  key_name = "vprofile-key"
+}
+
 # EC2 Instance
 resource "aws_instance" "vprofile_app" {
   ami                    = data.aws_ami.ubuntu.id
   instance_type          = "t2.medium"
-  key_name               = "vprofile-key"
+  key_name               = data.aws_key_pair.vprofile.key_name
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_ecr_profile.name
   user_data              = base64encode(templatefile("${path.module}/user-data.sh", {
