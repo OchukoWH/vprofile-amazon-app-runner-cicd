@@ -57,11 +57,11 @@ docker-compose --version
 
 # Login to ECR
 echo "Logging in to ECR..."
-aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${ECR_REGISTRY}"
 
 # Create application directory
 APP_DIR="/opt/vprofile"
-mkdir -p ${APP_DIR}
+mkdir -p "${APP_DIR}"
 cd ${APP_DIR}
 
 # Create docker-compose.yml file for ECR images
@@ -124,9 +124,9 @@ EOF
 
 # Pull Docker images from ECR
 echo "Pulling Docker images from ECR..."
-docker pull ${ECR_REGISTRY}/${ECR_REPO_DB}:latest || echo "Warning: Failed to pull ${ECR_REPO_DB}"
-docker pull ${ECR_REGISTRY}/${ECR_REPO_APP}:latest || echo "Warning: Failed to pull ${ECR_REPO_APP}"
-docker pull ${ECR_REGISTRY}/${ECR_REPO_WEB}:latest || echo "Warning: Failed to pull ${ECR_REPO_WEB}"
+docker pull "${ECR_REGISTRY}/${ECR_REPO_DB}:latest" || echo "Warning: Failed to pull ${ECR_REPO_DB}"
+docker pull "${ECR_REGISTRY}/${ECR_REPO_APP}:latest" || echo "Warning: Failed to pull ${ECR_REPO_APP}"
+docker pull "${ECR_REGISTRY}/${ECR_REPO_WEB}:latest" || echo "Warning: Failed to pull ${ECR_REPO_WEB}"
 
 # Pull public images
 docker pull memcached:latest
