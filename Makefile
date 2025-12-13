@@ -159,8 +159,6 @@ init-launch:
 
 deploy-launch:
 	@echo "$(GREEN)Deploying EC2 instance...$(NC)"
-	@if [ -z "$$TF_VAR_aws_region" ]; then \
-		echo "$(RED)Error: TF_VAR_aws_region not set$(NC)"; exit 1; fi
 	@if [ -z "$$TF_VAR_bucket" ]; then \
 		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
 	@if [ -z "$$TF_VAR_region" ]; then \
@@ -181,10 +179,10 @@ deploy-launch:
 			-input=false \
 			-no-color \
 			-compact-warnings \
-			-var="aws_region=$$TF_VAR_aws_region" \
 			-var="ecr_repo_db=$$TF_VAR_ecr_repo_db" \
 			-var="ecr_repo_app=$$TF_VAR_ecr_repo_app" \
 			-var="ecr_repo_web=$$TF_VAR_ecr_repo_web" \
+			-var="region=$$TF_VAR_region" \
 			-out=tfplan && \
 		terraform apply \
 			-input=false \
