@@ -1,0 +1,208 @@
+name: Create S3 Backend and ECR Repositories
+
+on:
+  push:
+    branches:
+      - state
+    paths:
+      - 'global/s3/**'
+      - 'global/ecr/**'
+      - '.github/workflows/create-s3-and-ecr.yml'
+      - 'Makefile'
+
+env:
+  TF_VAR_region: ${{ vars.TF_VAR_REGION }}
+  TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
+  TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB }}
+  TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP }}
+  TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB }}
+
+jobs:
+  setup-aws:
+    name: Configure AWS and Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Guard – fail if S3 state bucket already exists
+        run: |
+          if aws s3api head-bucket --bucket "${TF_VAR_bucket}" 2>/dev/null; then
+            echo " Terraform state bucket already exists. This workflow must only run once."
+            exit 1
+          else
+            echo " State bucket does not exist. Proceeding."
+          fi
+
+  create-s3:
+    name: Create S3 Bucket
+    needs: setup-aws
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Create S3 bucket and backend infra
+        run: |
+          make init-s3
+          make deploy-s3
+
+  update-backend:
+    name: Update Terraform backend configs
+    needs: create-s3
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update backend config files
+        run: make update-state-configs
+
+  migrate-backend:
+    name: Migrate Terraform State to S3
+    needs: update-backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Migrate Terraform backend
+        run: make migrate-s3-backend
+
+  create-ecr:
+    name: Create ECR Repositories
+    needs: migrate-backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: Guard – verify S3 state bucket exists
+        run: |
+          if ! aws s3api head-bucket --bucket "${TF_VAR_bucket}" 2>/dev/null; then
+            echo "Terraform state bucket does not exist. S3 creation must complete first."
+            exit 1
+          else
+            echo "State bucket exists. Proceeding with ECR creation."
+          fi
+
+      - name: Deploy ECR repositories
+        run: make deploy-ecr
+
+      - name: Get ECR repository information
+        id: ecr-info
+        run: |
+          cd global/ecr
+          REPO_DB_URL=$(terraform output -raw ecr_repository_db_url 2>/dev/null || echo "")
+          REPO_APP_URL=$(terraform output -raw ecr_repository_app_url 2>/dev/null || echo "")
+          REPO_WEB_URL=$(terraform output -raw ecr_repository_web_url 2>/dev/null || echo "")
+          
+          echo "repo_db_url=$REPO_DB_URL" >> $GITHUB_OUTPUT
+          echo "repo_app_url=$REPO_APP_URL" >> $GITHUB_OUTPUT
+          echo "repo_web_url=$REPO_WEB_URL" >> $GITHUB_OUTPUT
+
+      - name: Output ECR Repository Information
+        run: |
+          echo "## 🐳 ECR Repositories Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Repository URLs:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database:** \`${{ steps.ecr-info.outputs.repo_db_url }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Application:** \`${{ steps.ecr-info.outputs.repo_app_url }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Web/NGINX:** \`${{ steps.ecr-info.outputs.repo_web_url }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 View in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "- [ECR Repositories](https://console.aws.amazon.com/ecr/repositories?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Database Repository](https://console.aws.amazon.com/ecr/repositories/private/${{ env.TF_VAR_region }}/${{ env.TF_VAR_ecr_repo_db }}?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Application Repository](https://console.aws.amazon.com/ecr/repositories/private/${{ env.TF_VAR_region }}/${{ env.TF_VAR_ecr_repo_app }}?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [Web Repository](https://console.aws.amazon.com/ecr/repositories/private/${{ env.TF_VAR_region }}/${{ env.TF_VAR_ecr_repo_web }}?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ All ECR repositories are ready for Docker image pushes" >> $GITHUB_STEP_SUMMARY
+          
+          echo ""
+          echo "🐳 ECR Repositories Created:"
+          echo "   Database: ${{ steps.ecr-info.outputs.repo_db_url }}"
+          echo "   Application: ${{ steps.ecr-info.outputs.repo_app_url }}"
+          echo "   Web/NGINX: ${{ steps.ecr-info.outputs.repo_web_url }}"
+          echo "   View All: https://console.aws.amazon.com/ecr/repositories?region=${{ env.TF_VAR_region }}"
+
+  output-resources:
+    name: Output Created Resources
+    needs: [migrate-backend, create-ecr]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
+
+      - name: Get AWS Account ID
+        id: account
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+      - name: Output S3 Bucket Information
+        run: |
+          echo "## 🪣 S3 Bucket Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Bucket Name:** \`${{ env.TF_VAR_bucket }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** \`${{ env.TF_VAR_region }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 View in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "- [S3 Bucket](https://console.aws.amazon.com/s3/buckets/${{ env.TF_VAR_bucket }}?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [S3 Dashboard](https://console.aws.amazon.com/s3/home?region=${{ env.TF_VAR_region }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ S3 bucket \`${{ env.TF_VAR_bucket }}\` is ready for Terraform state storage" >> $GITHUB_STEP_SUMMARY
+          
+          echo ""
+          echo "🪣 S3 Bucket Created:"
+          echo "   Name: ${{ env.TF_VAR_bucket }}"
+          echo "   Region: ${{ env.TF_VAR_region }}"
+          echo "   View: https://console.aws.amazon.com/s3/buckets/${{ env.TF_VAR_bucket }}?region=${{ env.TF_VAR_region }}"
+

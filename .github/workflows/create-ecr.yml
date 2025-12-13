@@ -1,80 +1,80 @@
-name: Create ECR Repositories
+# name: Create ECR Repositories
 
-on:
-  workflow_run:
-    workflows: ["Bootstrap S3 Backend for Terraform State"]
-    types:
-      - completed
-  push:
-    branches:
-      - state
-    paths:
-      - 'global/ecr/**'
-      - 'global.tfvars'
-      - '.github/workflows/create-ecr.yml'
+# on:
+#   workflow_run:
+#     workflows: ["Bootstrap S3 Backend for Terraform State"]
+#     types:
+#       - completed
+#   push:
+#     branches:
+#       - state
+#     paths:
+#       - 'global/ecr/**'
+#       - 'global.tfvars'
+#       - '.github/workflows/create-ecr.yml'
 
-env:
-  TF_VAR_region: ${{ vars.TF_VAR_REGION }}
-  TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
-  TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB || 'vprofiledb' }}
-  TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP || 'vprofileapp' }}
-  TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB || 'vprofileweb' }}
+# env:
+#   TF_VAR_region: ${{ vars.TF_VAR_REGION }}
+#   TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
+#   TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB || 'vprofiledb' }}
+#   TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP || 'vprofileapp' }}
+#   TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB || 'vprofileweb' }}
 
-jobs:
-  setup-aws:
-    name: Configure AWS and Terraform
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+# jobs:
+#   setup-aws:
+#     name: Configure AWS and Terraform
+#     runs-on: ubuntu-latest
+#     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-          aws-region: ${{ env.TF_VAR_region }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+#           aws-region: ${{ env.TF_VAR_region }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+#       - name: Setup Terraform
+#         uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: 1.6.6
 
-      - name: Guard – fail if S3 state bucket does not exist
-        run: |
-          if ! aws s3api head-bucket --bucket "${TF_VAR_bucket}" 2>/dev/null; then
-            echo "Terraform state bucket does not exist. Please run the S3 bootstrap workflow first."
-            exit 1
-          else
-            echo "State bucket exists. Proceeding with ECR creation."
-          fi
+#       - name: Guard – fail if S3 state bucket does not exist
+#         run: |
+#           if ! aws s3api head-bucket --bucket "${TF_VAR_bucket}" 2>/dev/null; then
+#             echo "Terraform state bucket does not exist. Please run the S3 bootstrap workflow first."
+#             exit 1
+#           else
+#             echo "State bucket exists. Proceeding with ECR creation."
+#           fi
 
-  create-ecr:
-    name: Create ECR Repositories
-    needs: setup-aws
-    runs-on: ubuntu-latest
+#   create-ecr:
+#     name: Create ECR Repositories
+#     needs: setup-aws
+#     runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v4
+#     steps:
+#       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-          aws-region: ${{ env.TF_VAR_region }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+#           aws-region: ${{ env.TF_VAR_region }}
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.6.6
+#       - name: Setup Terraform
+#         uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: 1.6.6
 
-      - name: Deploy ECR repositories
-        run: make deploy-ecr
+#       - name: Deploy ECR repositories
+#         run: make deploy-ecr
 
-      - name: ECR repositories created
-        run: |
-          echo "✅ ECR repositories created successfully!"
+#       - name: ECR repositories created
+#         run: |
+#           echo "✅ ECR repositories created successfully!"
 
