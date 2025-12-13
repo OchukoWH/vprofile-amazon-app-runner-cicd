@@ -1,0 +1,87 @@
+name: Docker Image CI/CD
+
+on:
+  push:
+    branches: 
+      - "state"
+    paths:
+      - 'Docker-files/**'
+      - '.github/workflows/docker-image.yaml'
+
+env:
+  AWS_REGION: ${{ vars.TF_VAR_REGION }}
+  ECR_REPO_DB: ${{ vars.TF_VAR_ECR_REPO_DB }}
+  ECR_REPO_APP: ${{ vars.TF_VAR_ECR_REPO_APP }}
+  ECR_REPO_WEB: ${{ vars.TF_VAR_ECR_REPO_WEB }}
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    environment: state
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Get AWS Account ID
+      id: aws-account
+      run: |
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+        echo "AWS Account ID: $ACCOUNT_ID"
+    
+    - name: Set ECR repository URLs
+      id: ecr-urls
+      run: |
+        echo "ecr_registry=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com" >> $GITHUB_OUTPUT
+        echo "ecr_db=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_DB }}" >> $GITHUB_OUTPUT
+        echo "ecr_app=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_APP }}" >> $GITHUB_OUTPUT
+        echo "ecr_web=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_WEB }}" >> $GITHUB_OUTPUT
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      
+    - name: Extract short SHA
+      id: sha
+      run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+      
+    - name: Build and push vprofiledb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/db
+        file: ./Docker-files/db/Dockerfile
+        push: true
+        tags: |
+          ${{ steps.ecr-urls.outputs.ecr_db }}:staging-latest
+          ${{ steps.ecr-urls.outputs.ecr_db }}:staging-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileapp image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Docker-files/app/multistage/Dockerfile
+        push: true
+        tags: |
+          ${{ steps.ecr-urls.outputs.ecr_app }}:staging-latest
+          ${{ steps.ecr-urls.outputs.ecr_app }}:staging-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileweb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/web
+        file: ./Docker-files/web/Dockerfile
+        push: true
+        tags: |
+          ${{ steps.ecr-urls.outputs.ecr_web }}:staging-latest
+          ${{ steps.ecr-urls.outputs.ecr_web }}:staging-${{ steps.sha.outputs.short_sha }}
