@@ -61,7 +61,7 @@ aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS 
 
 # Create application directory
 APP_DIR="/opt/vprofile"
-mkdir -p "${APP_DIR}"
+mkdir -p "$APP_DIR"
 cd "$APP_DIR"
 
 # Create docker-compose.yml file for ECR images
