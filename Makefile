@@ -92,11 +92,11 @@ deploy-s3:
 
 update-state-configs:
 	@echo "$(GREEN)Updating state.tf files with bucket and region...$(NC)"
-	@if [ -z "$(BUCKET)" ]; then \
-		echo "$(RED)Error: BUCKET variable not set$(NC)"; exit 1; fi
-	@if [ -z "$(REGION)" ]; then \
-		echo "$(RED)Error: REGION variable not set$(NC)"; exit 1; fi
-	@printf 'terraform {\n  backend "s3" {\n    region  = "%s"\n    bucket  = "%s"\n    key     = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$(REGION)" "$(BUCKET)" > $(S3_DIR)/state.tf
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
+	@printf 'terraform {\n  backend "s3" {\n    region  = "%s"\n    bucket  = "%s"\n    key     = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$$TF_VAR_region" "$$TF_VAR_bucket" > $(S3_DIR)/state.tf
 	@echo "$(GREEN)✓ Backend config updated$(NC)"
 
 migrate-s3-backend:
