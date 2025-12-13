@@ -67,27 +67,15 @@ help:
 # ==============================================================================
 init-s3:
 	@echo "$(GREEN)Initializing S3 backend...$(NC)"
-	@if [ -z "$$TF_VAR_bucket" ]; then \
-		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
-	@if [ -z "$$TF_VAR_region" ]; then \
-		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
 		terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
 			-input=false \
 			-no-color
 
 deploy-s3:
 	@echo "$(GREEN)Deploying S3 backend...$(NC)"
-	@if [ -z "$$TF_VAR_bucket" ]; then \
-		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
-	@if [ -z "$$TF_VAR_region" ]; then \
-		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
 		terraform init \
-			-backend-config="bucket=$$TF_VAR_bucket" \
-			-backend-config="region=$$TF_VAR_region" \
 			-input=false \
 			-no-color && \
 		terraform plan \
@@ -103,26 +91,12 @@ deploy-s3:
 		rm -f tfplan
 	@echo "$(GREEN)✓ S3 backend deployed$(NC)"
 
-update-state-configs:
-	@echo "$(GREEN)Updating state.tf files with bucket and region...$(NC)"
-	@if [ -z "$$TF_VAR_bucket" ]; then \
-		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
-	@if [ -z "$$TF_VAR_region" ]; then \
-		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
-	@echo "$(YELLOW)Updating $(S3_DIR)/state.tf...$(NC)"
-	@printf 'terraform {\n  backend "s3" {\n    region  = "%s"\n    bucket  = "%s"\n    key     = "global/s3/terraform.tfstate"\n    encrypt = true\n  }\n}\n' "$$TF_VAR_region" "$$TF_VAR_bucket" > $(S3_DIR)/state.tf
-	@echo "$(GREEN)✓ All backend configs updated$(NC)"
-
 migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
-	@if [ -z "$$TF_VAR_bucket" ]; then \
-		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
-	@if [ -z "$$TF_VAR_region" ]; then \
-		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
-		terraform init \
+		echo "yes" | terraform init \
+			-backend-config=../../$(STATE_CONFIG) \
 			-migrate-state \
-			-input=false \
 			-no-color
 	@echo "$(GREEN)✓ S3 backend state migrated$(NC)"
 

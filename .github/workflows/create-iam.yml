@@ -1,102 +1,73 @@
-# name: Create IAM Roles and Policies
+name: Create IAM Roles and Policies
 
-# on:
-#   workflow_run:
-#     workflows: ["Create ECR Repositories"]
-#     types:
-#       - completed
-#   push:
-#     branches:
-#       - state
-#     paths:
-#       - 'global/iam/**'
-#       - 'global.tfvars'
-#       - '.github/workflows/create-iam.yml'
+on:
+  workflow_run:
+    workflows: ["Create ECR Repositories"]
+    types:
+      - completed
+  push:
+    branches:
+      - state
+    paths:
+      - 'global/iam/**'
+      - 'global.tfvars'
+      - '.github/workflows/create-iam.yml'
 
-# env:
-#   TF_VAR_region: ${{ vars.TF_VAR_REGION }}
-#   TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
-#   TF_VAR_github_repos: ${{ vars.TF_VAR_GITHUB_REPOS || format('{0}/{1}', github.repository_owner, github.event.repository.name) }}
-#   TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB || 'vprofiledb' }}
-#   TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP || 'vprofileapp' }}
-#   TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB || 'vprofileweb' }}
+env:
+  TF_VAR_region: ${{ vars.TF_VAR_REGION }}
+  TF_VAR_bucket: ${{ vars.TF_VAR_BUCKET }}
+  TF_VAR_github_repos: ${{ vars.TF_VAR_GITHUB_REPOS || format('{0}/{1}', github.repository_owner, github.event.repository.name) }}
+  TF_VAR_ecr_repo_db: ${{ vars.TF_VAR_ECR_REPO_DB }}
+  TF_VAR_ecr_repo_app: ${{ vars.TF_VAR_ECR_REPO_APP }}
+  TF_VAR_ecr_repo_web: ${{ vars.TF_VAR_ECR_REPO_WEB }}
 
-# jobs:
-#   setup-aws:
-#     name: Configure AWS and Terraform
-#     runs-on: ubuntu-latest
-#     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+jobs:
+  setup-aws:
+    name: Configure AWS and Terraform
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
 
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-#           aws-region: ${{ env.TF_VAR_region }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: 1.6.6
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
-#       - name: Guard – fail if ECR repositories do not exist
-#         run: |
-#           REPO_DB="${{ env.TF_VAR_ecr_repo_db }}"
-#           REPO_APP="${{ env.TF_VAR_ecr_repo_app }}"
-#           REPO_WEB="${{ env.TF_VAR_ecr_repo_web }}"
-#           REGION="${{ env.TF_VAR_region }}"
-          
-#           MISSING_REPOS=()
-          
-#           if ! aws ecr describe-repositories --repository-names "$REPO_DB" --region "$REGION" 2>/dev/null; then
-#             MISSING_REPOS+=("$REPO_DB")
-#           fi
-          
-#           if ! aws ecr describe-repositories --repository-names "$REPO_APP" --region "$REGION" 2>/dev/null; then
-#             MISSING_REPOS+=("$REPO_APP")
-#           fi
-          
-#           if ! aws ecr describe-repositories --repository-names "$REPO_WEB" --region "$REGION" 2>/dev/null; then
-#             MISSING_REPOS+=("$REPO_WEB")
-#           fi
-          
-#           if [ ${#MISSING_REPOS[@]} -gt 0 ]; then
-#             echo "❌ ECR repositories do not exist: ${MISSING_REPOS[*]}"
-#             echo "Please run the ECR workflow first."
-#             exit 1
-#           else
-#             echo "✅ All ECR repositories exist. Proceeding with IAM creation."
-#           fi
+  create-iam:
+    name: Create IAM Roles and Policies
+    needs: setup-aws
+    runs-on: ubuntu-latest
 
-#   create-iam:
-#     name: Create IAM Roles and Policies
-#     needs: setup-aws
-#     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-#     steps:
-#       - uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
+          aws-region: ${{ env.TF_VAR_region }}
 
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-#           aws-region: ${{ env.TF_VAR_region }}
-
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: 1.6.6
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
 
 
-#       - name: Deploy IAM roles and policies using Makefile
-#         run: make deploy-iam
+      - name: Deploy IAM roles and policies using Makefile
+        run: make deploy-iam
 
-#       - name: IAM resources created
-#         run: |
-#           echo "✅ IAM roles and policies created successfully!"
+      - name: IAM resources created
+        run: |
+          echo "✅ IAM roles and policies created successfully!"
 
