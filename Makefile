@@ -101,11 +101,13 @@ update-state-configs:
 
 migrate-s3-backend:
 	@echo "$(GREEN)Migrating S3 backend state...$(NC)"
+	@if [ -z "$$TF_VAR_bucket" ]; then \
+		echo "$(RED)Error: TF_VAR_bucket not set$(NC)"; exit 1; fi
+	@if [ -z "$$TF_VAR_region" ]; then \
+		echo "$(RED)Error: TF_VAR_region not set$(NC)"; exit 1; fi
 	@cd $(S3_DIR) && \
 		terraform init \
 			-migrate-state \
-			-reconfigure \
-			-backend-config=../../$(STATE_CONFIG) \
 			-input=false \
 			-no-color
 	@echo "$(GREEN)✓ S3 backend state migrated$(NC)"
