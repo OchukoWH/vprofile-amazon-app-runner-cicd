@@ -4,6 +4,6 @@ on: push
 
 jobs:
   test:
-    runs-on: [self-hosted, ochuko]
+    runs-on: self-hosted
     steps:
       - run: echo "Runner picked up job"
