@@ -13,7 +13,10 @@ jobs:
 
   build-dev:
     if: github.ref == 'refs/heads/dev'
-    runs-on: ochuko
+    runs-on:
+      - self-hosted
+      - Linux
+      - ochuko
     environment: dev
     
     steps:
@@ -58,7 +61,10 @@ jobs:
 
   build-staging:
     if: github.ref == 'refs/heads/staging'
-    runs-on: ochuko
+    runs-on:
+      - self-hosted
+      - Linux
+      - ochuko
     environment: staging
     
     steps:
@@ -103,7 +109,10 @@ jobs:
 
   build-prod:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docker-hub'
-    runs-on: ochuko
+    runs-on:
+      - self-hosted
+      - Linux
+      - ochuko
     environment: prod
     
     steps:
