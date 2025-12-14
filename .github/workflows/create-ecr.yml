@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - state
+      - main
     paths:
       - 'global/ecr/**'
       - '.github/workflows/create-ecr.yml'

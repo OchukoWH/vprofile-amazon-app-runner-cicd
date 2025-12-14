@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - state
+      - main
     paths:
       - '.github/workflows/create-ec2-keypair.yml'
 

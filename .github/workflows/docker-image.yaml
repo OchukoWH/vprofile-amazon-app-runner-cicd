@@ -8,6 +8,7 @@ on:
   push:
     branches: 
       - "state"
+      - "main"
     paths:
       - 'Docker-files/**'
       - '.github/workflows/docker-image.yaml'
@@ -29,6 +30,7 @@ jobs:
       ecr_app: ${{ steps.ecr-urls.outputs.ecr_app }}
       ecr_web: ${{ steps.ecr-urls.outputs.ecr_web }}
       short_sha: ${{ steps.sha.outputs.short_sha }}
+      tag_prefix: ${{ steps.tag.outputs.prefix }}
     
     steps:
     - uses: actions/checkout@v4
@@ -57,6 +59,15 @@ jobs:
     - name: Extract short SHA
       id: sha
       run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+    
+    - name: Set tag prefix based on branch
+      id: tag
+      run: |
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          echo "prefix=prod" >> $GITHUB_OUTPUT
+        else
+          echo "prefix=staging" >> $GITHUB_OUTPUT
+        fi
 
   build-db:
     needs: setup
@@ -86,8 +97,8 @@ jobs:
         file: ./Docker-files/db/Dockerfile
         push: true
         tags: |
-          ${{ needs.setup.outputs.ecr_db }}:staging-latest
-          ${{ needs.setup.outputs.ecr_db }}:staging-${{ needs.setup.outputs.short_sha }}
+          ${{ needs.setup.outputs.ecr_db }}:${{ needs.setup.outputs.tag_prefix }}-latest
+          ${{ needs.setup.outputs.ecr_db }}:${{ needs.setup.outputs.tag_prefix }}-${{ needs.setup.outputs.short_sha }}
 
   build-app:
     needs: setup

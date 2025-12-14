@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - state
+      - main
     paths:
       - 'launch/**'
       - '.github/workflows/deploy-ec2.yml'
