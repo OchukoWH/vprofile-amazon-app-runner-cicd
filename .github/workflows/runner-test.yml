@@ -1,0 +1,9 @@
+name: runner-test
+
+on: push
+
+jobs:
+  test:
+    runs-on: [self-hosted, ochuko]
+    steps:
+      - run: echo "Runner picked up job"
