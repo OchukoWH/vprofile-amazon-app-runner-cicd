@@ -15,7 +15,6 @@ jobs:
     if: github.ref == 'refs/heads/dev'
     runs-on:
       - self-hosted
-      - Linux
       - ochuko
     environment: dev
     
@@ -63,7 +62,6 @@ jobs:
     if: github.ref == 'refs/heads/staging'
     runs-on:
       - self-hosted
-      - Linux
       - ochuko
     environment: staging
     
@@ -111,7 +109,6 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docker-hub'
     runs-on:
       - self-hosted
-      - Linux
       - ochuko
     environment: prod
     
