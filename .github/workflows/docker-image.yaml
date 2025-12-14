@@ -1,94 +1,36 @@
 name: Docker Image CI/CD
 
 on:
-  workflow_run:
-    workflows: ["Create ECR Repositories"]
-    types:
-      - completed
   push:
     branches: 
-      - "state"
       - "main"
     paths:
       - 'Docker-files/**'
       - '.github/workflows/docker-image.yaml'
-   
 
-env:
-  AWS_REGION: ${{ vars.TF_VAR_REGION }}
-  ECR_REPO_DB: ${{ vars.TF_VAR_ECR_REPO_DB }}
-  ECR_REPO_APP: ${{ vars.TF_VAR_ECR_REPO_APP }}
-  ECR_REPO_WEB: ${{ vars.TF_VAR_ECR_REPO_WEB }}
 
 jobs:
 
-  setup:
-    runs-on: ubuntu-latest
-    outputs:
-      account_id: ${{ steps.aws-account.outputs.account_id }}
-      ecr_db: ${{ steps.ecr-urls.outputs.ecr_db }}
-      ecr_app: ${{ steps.ecr-urls.outputs.ecr_app }}
-      ecr_web: ${{ steps.ecr-urls.outputs.ecr_web }}
-      short_sha: ${{ steps.sha.outputs.short_sha }}
-      tag_prefix: ${{ steps.tag.outputs.prefix }}
+  build-dev:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ochuko
+    environment: dev
     
     steps:
     - uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Get AWS Account ID
-      id: aws-account
-      run: |
-        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-        echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-        echo "AWS Account ID: $ACCOUNT_ID"
-    
-    - name: Set ECR repository URLs
-      id: ecr-urls
-      run: |
-        echo "ecr_db=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_DB }}" >> $GITHUB_OUTPUT
-        echo "ecr_app=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_APP }}" >> $GITHUB_OUTPUT
-        echo "ecr_web=${{ steps.aws-account.outputs.account_id }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_WEB }}" >> $GITHUB_OUTPUT
-      
-    - name: Extract short SHA
-      id: sha
-      run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
-    
-    - name: Set tag prefix based on branch
-      id: tag
-      run: |
-        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-          echo "prefix=prod" >> $GITHUB_OUTPUT
-        else
-          echo "prefix=staging" >> $GITHUB_OUTPUT
-        fi
-
-  build-db:
-    needs: setup
-    runs-on: ubuntu-latest
-    environment: state
-    
-    steps:
-    - uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-        aws-region: ${{ env.AWS_REGION }}
       
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Login to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@v2
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Extract short SHA
+      id: sha
+      run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
       
     - name: Build and push vprofiledb image
       uses: docker/build-push-action@v5
@@ -96,30 +38,7 @@ jobs:
         context: ./Docker-files/db
         file: ./Docker-files/db/Dockerfile
         push: true
-        tags: |
-          ${{ needs.setup.outputs.ecr_db }}:${{ needs.setup.outputs.tag_prefix }}-latest
-          ${{ needs.setup.outputs.ecr_db }}:${{ needs.setup.outputs.tag_prefix }}-${{ needs.setup.outputs.short_sha }}
-
-  build-app:
-    needs: setup
-    runs-on: ubuntu-latest
-    environment: state
-    
-    steps:
-    - uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-        aws-region: ${{ env.AWS_REGION }}
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Login to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@v2
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:dev-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:dev-${{ steps.sha.outputs.short_sha }}
       
     - name: Build and push vprofileapp image
       uses: docker/build-push-action@v5
@@ -127,30 +46,7 @@ jobs:
         context: .
         file: ./Docker-files/app/multistage/Dockerfile
         push: true
-        tags: |
-          ${{ needs.setup.outputs.ecr_app }}:staging-latest
-          ${{ needs.setup.outputs.ecr_app }}:staging-${{ needs.setup.outputs.short_sha }}
-
-  build-web:
-    needs: setup
-    runs-on: ubuntu-latest
-    environment: state
-    
-    steps:
-    - uses: actions/checkout@v4
-      
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_ACCESS_KEY_SECRET }}
-        aws-region: ${{ env.AWS_REGION }}
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
-    - name: Login to Amazon ECR
-      uses: aws-actions/amazon-ecr-login@v2
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:dev-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:dev-${{ steps.sha.outputs.short_sha }}
       
     - name: Build and push vprofileweb image
       uses: docker/build-push-action@v5
@@ -158,6 +54,94 @@ jobs:
         context: ./Docker-files/web
         file: ./Docker-files/web/Dockerfile
         push: true
-        tags: |
-          ${{ needs.setup.outputs.ecr_web }}:staging-latest
-          ${{ needs.setup.outputs.ecr_web }}:staging-${{ needs.setup.outputs.short_sha }}
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:dev-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:dev-${{ steps.sha.outputs.short_sha }}
+
+  build-staging:
+    if: github.ref == 'refs/heads/staging'
+    runs-on: ochuko
+    environment: staging
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Extract short SHA
+      id: sha
+      run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+      
+    - name: Build and push vprofiledb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/db
+        file: ./Docker-files/db/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:staging-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:staging-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileapp image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Docker-files/app/multistage/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:staging-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:staging-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileweb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/web
+        file: ./Docker-files/web/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:staging-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:staging-${{ steps.sha.outputs.short_sha }}
+
+  build-prod:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/docker-hub'
+    runs-on: ochuko
+    environment: prod
+    
+    steps:
+    - uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+    - name: Extract short SHA
+      id: sha
+      run: echo "short_sha=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
+      
+    - name: Build and push vprofiledb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/db
+        file: ./Docker-files/db/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:prod-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofiledb2:prod-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileapp image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Docker-files/app/multistage/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:prod-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileapp2:prod-${{ steps.sha.outputs.short_sha }}
+      
+    - name: Build and push vprofileweb image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./Docker-files/web
+        file: ./Docker-files/web/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:prod-latest,${{ secrets.DOCKERHUB_USERNAME }}/vprofileweb2:prod-${{ steps.sha.outputs.short_sha }}
