@@ -1,6 +1,6 @@
 # VProfile - AWS CI/CD Pipeline with Docker
 
-A complete CI/CD pipeline that builds Docker images, pushes them to Amazon ECR, and deploys containers to EC2 instances.
+A complete CI/CD pipeline that builds Docker images, pushes them to Amazon ECR, and deploys containers to EC2 instances. The pipeline uses GitHub Actions with a self-hosted runner for Docker image builds.
 
 ## 🚀 Quick Setup
 
@@ -14,11 +14,39 @@ export AWS_REGION="us-east-1"
 export BUCKET_NAME="your-terraform-state-bucket-name"
 
 # Create S3 bucket using Makefile
-make init-s3 && make deploy-s3 && make migrate-s3-backend
+make init-s3 &&  make deploy-s3 && make migrate-s3-backend
 ```
+
+### Step 2: Set Up Self-Hosted Runner
+
+**Required for Docker Image CI/CD workflow**
+
+The Docker image build workflow runs on a self-hosted EC2 runner. You need to:
+
+1. **Provision an EC2 instance** (or use an existing one) for the runner
+2. **Install Docker** on the runner:
+   ```bash
+   # For Ubuntu/Debian
+   sudo apt-get update
+   sudo apt-get install -y docker.io
+   sudo systemctl start docker
+   sudo systemctl enable docker
+   sudo usermod -aG docker $USER
+   ```
+
+3. **Install GitHub Actions Runner**:
+   - Go to your GitHub repository → **Settings** → **Actions** → **Runners**
+   - Click **New self-hosted runner**
+   - Follow the instructions to download and configure the runner
+   - Name the runner (e.g., `ochuko`)
+
+   ```
+
+**Note:** The runner must have Docker installed and running. The workflow uses `docker/build-push-action` which requires Docker to be available.
+
 ---
 
-### Step 2: Generate SSH Key Pair
+### Step 3: Generate SSH Key Pair
 
 ```bash
 ./scripts/generate-keys.sh
@@ -28,7 +56,7 @@ Copy the public key content (`vprofile-key.pub`) - you'll need it for GitHub Sec
 
 ---
 
-### Step 3: Configure GitHub Secrets
+### Step 4: Configure GitHub Secrets
 
 Go to **Settings** → **Secrets and variables** → **Actions** → **Secrets**
 
@@ -37,15 +65,12 @@ Go to **Settings** → **Secrets and variables** → **Actions** → **Secrets**
 | `AWS_ACCESS_KEY_ID` | Your AWS Access Key ID |
 | `AWS_ACCESS_KEY_SECRET` | Your AWS Secret Access Key |
 | `EC2_PUBLIC_KEY` | Content of `vprofile-key.pub` file |
-
-Run 
-```sh
-./scripts/generate-keys.sh 
-```
+| `DOCKERHUB_USERNAME` | Docker Hub username (for pushing images) |
+| `DOCKERHUB_TOKEN` | Docker Hub access token |
 
 ---
 
-### Step 4: Configure GitHub Variables
+### Step 5: Configure GitHub Variables
 
 Go to **Settings** → **Secrets and variables** → **Actions** → **Variables**
 
@@ -60,17 +85,19 @@ Go to **Settings** → **Secrets and variables** → **Actions** → **Variables
 
 ---
 
-### Step 5: Run Workflows
+### Step 6: Run Workflows
 
 Workflows run automatically on push to `state` or `main` branch, or trigger manually:
 
 1. **Create EC2 Key Pair** - Creates EC2 key pair in AWS
 2. **Create ECR Repositories** - Creates 3 ECR repositories
 3. **Create IAM Roles** - Creates IAM role for GitHub Actions
-4. **Docker Image CI/CD** - Builds and pushes Docker images to ECR
+4. **Docker Image CI/CD** - Builds and pushes Docker images to Docker Hub (runs on self-hosted runner)
 5. **Deploy EC2 Instance** - Provisions EC2 and deploys application
 
 **Workflow Order:** Key Pair → ECR → IAM → Docker Images → EC2 Deployment
+
+**Self-Hosted Runner:** The Docker Image CI/CD workflow runs on your self-hosted runner (`ochuko`). Ensure the runner is online and Docker is installed before triggering the workflow.
 
 ---
 
@@ -113,14 +140,28 @@ export TF_VAR_ecr_repo_web="vprofileweb"
 
 ## 🔧 Troubleshooting
 
+### Self-Hosted Runner Issues
+
+**Runner not picking up jobs:**
+- Verify runner is online: Check **Settings** → **Actions** → **Runners**
+- Ensure runner has correct labels: `self-hosted`
+- Check runner logs for errors
+
+**Docker not found on runner:**
+- Verify Docker is installed: `docker --version`
+- Check Docker service is running: `sudo systemctl status docker`
+- Ensure runner user has Docker permissions: `sudo usermod -aG docker $USER`
+- Restart runner after Docker installation
+
+**Build failures on runner:**
+- Check runner has sufficient disk space: `df -h`
+- Verify Docker daemon is accessible: `docker ps`
+- Check runner logs: `./run.sh` (if running manually)
+
 ### ECR Login Failed
 - Check IAM role permissions on EC2 instance
 - Verify ECR repositories exist
 - Check logs: `sudo cat /var/log/user-data.log` (on EC2)
-
-### Images Not Found
-- Verify images were pushed: `aws ecr describe-images --repository-name vprofiledb --region us-east-1`
-- Check image tags match (`staging-latest` or `prod-latest`)
 
 ### Containers Not Starting
 - SSH into EC2: `ssh -i vprofile-key.pem ubuntu@<ec2-ip>`
@@ -131,44 +172,16 @@ export TF_VAR_ecr_repo_web="vprofileweb"
 - Verify all GitHub Secrets and Variables are set
 - Check AWS credentials have necessary permissions
 - Review workflow logs for specific errors
+- Ensure self-hosted runner is online and Docker is installed
 
 ---
 
-## 📋 Setup Checklist
-
-- [ ] S3 bucket created (`make create-s3`)
-- [ ] SSH key pair generated (`./scripts/generate-keys.sh`)
-- [ ] GitHub Secrets added (AWS credentials + EC2 public key)
-- [ ] GitHub Variables added (region, bucket, ECR repos)
-- [ ] Workflows triggered (push to `state`/`main` branch)
-- [ ] Application accessible via EC2 URL
+**CI/CD Pipeline:**
+- GitHub Actions workflows orchestrate infrastructure provisioning
+- Self-hosted EC2 runner builds Docker images
+- Images pushed to Docker Hub
+- EC2 instance pulls images and runs containers
 
 ---
 
-## 🏗️ Architecture
-
-```
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│   Nginx     │───►│   Tomcat    │───►│   MySQL     │
-│   (Port 80) │    │  (Port 8080)│    │ (Port 3306) │
-└─────────────┘    └─────────────┘    └─────────────┘
-                            │
-                            ▼
-                   ┌─────────────┐    ┌─────────────┐
-                   │  Memcached  │    │  RabbitMQ   │
-                   │ (Port 11211)│    │ (Port 5672) │
-                   └─────────────┘    └─────────────┘
-```
-
----
-
-## 🔐 Security Notes
-
-- Never commit AWS credentials or private keys
-- Use GitHub Secrets for sensitive data
-- Rotate access keys regularly
-- Enable ECR image scanning
-
----
-
-**Tech Stack:** Docker, Docker Compose, AWS ECR, AWS EC2, Terraform, GitHub Actions
+**Tech Stack:** Docker, Docker Compose, AWS ECR, AWS EC2, Terraform, GitHub Actions, Self-Hosted Runners
