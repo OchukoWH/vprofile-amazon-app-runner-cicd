@@ -26,8 +26,3 @@ variable "ecr_repo_web" {
   default     = "vprofileweb"
 }
 
-variable "environment" {
-  type        = string
-  description = "Environment name (dev, staging, prod)."
-  default     = "prod"
-}
